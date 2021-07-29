@@ -12,6 +12,7 @@ from dagster import __version__ as dagster_version
 from dagster import check
 from dagster.cli.workspace.cli_target import get_workspace_process_context_from_kwargs
 from dagster.core.debug import DebugRunPayload
+from dagster.core.storage.compute_log_manager import ComputeIOType
 from dagster.core.workspace.context import WorkspaceProcessContext
 from dagster_graphql import __version__ as dagster_graphql_version
 from dagster_graphql.schema import create_schema
@@ -24,6 +25,7 @@ from starlette import status
 from starlette.applications import Starlette
 from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import QueryParams
+from starlette.exceptions import HTTPException
 from starlette.requests import Request
 from starlette.responses import (
     FileResponse,
@@ -313,6 +315,33 @@ async def download_debug_file_endpoint(
     return StreamingResponse(result, media_type="application/gzip")
 
 
+async def download_compute_logs_endpoint(
+    context: WorkspaceProcessContext,
+    request: Request,
+):
+    run_id = request.path_params["run_id"]
+    step_key = request.path_params["step_key"]
+    file_type = request.path_params["file_type"]
+
+    file = context.instance.compute_log_manager.get_local_path(
+        run_id,
+        step_key,
+        ComputeIOType(file_type),
+    )
+
+    if not path.exists(file):
+        raise HTTPException(404)
+
+    return FileResponse(
+        context.instance.compute_log_manager.get_local_path(
+            run_id,
+            step_key,
+            ComputeIOType(file_type),
+        ),
+        filename=f"{run_id}_{step_key}.{file_type}",
+    )
+
+
 def index_endpoint(
     base_dir: str,
     app_path_prefix: str,
@@ -366,6 +395,7 @@ def create_app(
         debug=debug,
         routes=[
             Route("/dagit_info", dagit_info_endpoint),
+            # graphql
             Route(
                 "/graphql",
                 partial(graphql_http_endpoint, graphql_schema, process_context, app_path_prefix),
@@ -393,9 +423,14 @@ def create_app(
             *create_root_static_endpoints(base_dir),
             # download file endpoints
             Route(
+                "/download/{run_id:str}/{step_key:str}/{file_type:str}",
+                partial(download_compute_logs_endpoint, process_context),
+            ),
+            Route(
                 "/download_debug/{run_id:str}",
                 partial(download_debug_file_endpoint, process_context),
             ),
+            # index.html
             Route("/{path:path}", bound_index_endpoint),
             Route("/", bound_index_endpoint),
         ],
