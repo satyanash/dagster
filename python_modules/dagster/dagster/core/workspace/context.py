@@ -283,7 +283,7 @@ class IWorkspaceProcessContext(ABC):
     """
 
     @abstractmethod
-    def create_request_context(self) -> BaseWorkspaceRequestContext:
+    def create_request_context(self, origin=None) -> BaseWorkspaceRequestContext:
         pass
 
     def has_permission(self, permission: str) -> bool:
@@ -577,7 +577,7 @@ class WorkspaceProcessContext(IWorkspaceProcessContext):
 
         self._location_entry_dict = OrderedDict()
 
-    def create_request_context(self) -> WorkspaceRequestContext:
+    def create_request_context(self, origin=None) -> WorkspaceRequestContext:
         return WorkspaceRequestContext(
             instance=self._instance,
             workspace_snapshot=self.create_snapshot(),
