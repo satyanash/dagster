@@ -25,6 +25,7 @@ from dagster.core.storage.file_manager import local_file_manager
 from dagster.core.types.dagster_type import DagsterType
 from dagster.core.types.marshal import SerializationStrategy
 from dagster.utils import PICKLE_PROTOCOL, file_relative_path
+from dagstermill.io_managers import backcompact_output_notebook_io_manager
 
 try:
     from dagster_pandas import DataFrame
@@ -72,7 +73,14 @@ def test_nb_solid(name, **kwargs):
     )
 
 
-default_mode_defs = [ModeDefinition(resource_defs={"file_manager": local_file_manager})]
+default_mode_defs = [
+    ModeDefinition(
+        resource_defs={
+            "file_manager": local_file_manager,
+            "output_notebook_io_manager": backcompact_output_notebook_io_manager,
+        }
+    )
+]
 
 
 hello_world = test_nb_solid("hello_world", output_defs=[])
@@ -125,7 +133,7 @@ def alias_config_pipeline():
 
 @solid(input_defs=[InputDefinition("notebook", dagster_type=FileHandle)])
 def load_notebook(notebook):
-    return os.path.exists(notebook.path_desc)
+    return notebook
 
 
 @pipeline(mode_defs=default_mode_defs)
@@ -348,11 +356,16 @@ def filepicklelist_resource(init_context):
             resource_defs={
                 "list": ResourceDefinition(lambda _: []),
                 "file_manager": local_file_manager,
+                "output_notebook_io_manager": backcompact_output_notebook_io_manager,
             },
         ),
         ModeDefinition(
             name="prod",
-            resource_defs={"list": filepicklelist_resource, "file_manager": local_file_manager},
+            resource_defs={
+                "list": filepicklelist_resource,
+                "file_manager": local_file_manager,
+                "output_notebook_io_manager": backcompact_output_notebook_io_manager,
+            },
         ),
     ]
 )
@@ -363,7 +376,11 @@ def resource_pipeline():
 @pipeline(
     mode_defs=[
         ModeDefinition(
-            resource_defs={"list": filepicklelist_resource, "file_manager": local_file_manager}
+            resource_defs={
+                "list": filepicklelist_resource,
+                "file_manager": local_file_manager,
+                "output_notebook_io_manager": backcompact_output_notebook_io_manager,
+            }
         )
     ]
 )
@@ -460,7 +477,11 @@ def fan_in(a, b):
 @pipeline(
     mode_defs=[
         ModeDefinition(
-            resource_defs={"io_manager": fs_io_manager, "file_manager": local_file_manager}
+            resource_defs={
+                "io_manager": fs_io_manager,
+                "file_manager": local_file_manager,
+                "output_notebook_io_manager": backcompact_output_notebook_io_manager,
+            }
         )
     ]
 )
@@ -478,7 +499,11 @@ def outer():
 @pipeline(
     mode_defs=[
         ModeDefinition(
-            resource_defs={"io_manager": fs_io_manager, "file_manager": local_file_manager}
+            resource_defs={
+                "io_manager": fs_io_manager,
+                "file_manager": local_file_manager,
+                "output_notebook_io_manager": backcompact_output_notebook_io_manager,
+            }
         )
     ]
 )
@@ -496,6 +521,7 @@ def notebook_repo():
         hello_world_config_pipeline,
         hello_world_explicit_yield_pipeline,
         hello_world_output_pipeline,
+        hello_world_with_output_notebook_pipeline,
         hello_logging_pipeline,
         resource_pipeline,
         resource_with_exception_pipeline,
